@@ -1,0 +1,25 @@
+{
+  "name": "stellar-time-marketplace",
+  "version": "1.0.0",
+  "description": "A decentralized marketplace for time-based services on Stellar blockchain using Soroban smart contracts",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "deploy": "node scripts/deploy.js",
+    "build": "cd contracts && cargo build --target wasm32-unknown-unknown --release",
+    "test": "cd contracts && cargo test",
+    "dev": "cd frontend && npm run dev"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "stellar",
+    "soroban",
+    "blockchain",
+    "smart-contracts",
+    "marketplace"
+  ],
+  "author": "",
+  "license": "MIT"
+}

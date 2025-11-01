@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Time Marketplace</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-freighter-api/5.0.0/index.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>⏰ Stellar Time Marketplace</h1>
+            <div id="wallet-section">
+                <button id="connectBtn" class="btn-primary">Connect Freighter</button>
+                <span id="walletAddress"></span>
+            </div>
+        </header>
+
+        <main>
+            <section class="panel">
+                <h2>Mint Time Token</h2>
+                <form id="mintForm">
+                    <input type="number" id="hourlyRate" placeholder="Hourly Rate (stroops)" required min="1">
+                    <input type="number" id="hoursAvailable" placeholder="Hours Available" required min="1">
+                    <input type="text" id="description" placeholder="Service Description" required maxlength="100">
+                    <button type="submit" class="btn-primary">Mint Token</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <h2>Your Tokens</h2>
+                <button id="loadMyTokens" class="btn-secondary">Load My Tokens</button>
+                <div id="myTokensList"></div>
+            </section>
+
+            <section class="panel full-width">
+                <h2>Marketplace</h2>
+                <button id="loadAllTokens" class="btn-secondary">Refresh Marketplace</button>
+                <div id="tokensList"></div>
+            </section>
+        </main>
+
+        <div id="status"></div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
