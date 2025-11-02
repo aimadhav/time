@@ -1,12 +1,9 @@
 [package]
-name = "time-token"
+name = "stellar-time-marketplace"
 version = "0.1.0"
 edition = "2021"
 
 [workspace]
-
-[lib]
-crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = "21.0.0"
@@ -27,3 +24,6 @@ lto = true
 [profile.release-with-logs]
 inherits = "release"
 debug-assertions = true
+
+[lib]
+crate-type = ["cdylib"]

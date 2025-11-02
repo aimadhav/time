@@ -1,0 +1,1 @@
+C:\Users\madha\Desktop\New\ folder\soroban-hello-world\stellar-time-marketplace\contracts\target\wasm32v1-none\release\stellar_time_marketplace.wasm: C:\Users\madha\Desktop\New\ folder\soroban-hello-world\stellar-time-marketplace\contracts\src\lib.rs
