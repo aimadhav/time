@@ -222,7 +222,7 @@ We welcome contributions from the community! Here's how you can help:
 4. **Push to the branch** (`git push origin feature/amazing-feature`)
 5. **Open a Pull Request**
 
-###Contract details
-contract id:CB7BI4MNPQC7FZSDY7OOC6ETLDEPLEITEI3WTTFGFEJG36GTGR3GPW43
+## Contract details
+contract id:CCA3AO4TOOVS66AXW7NQLDCBDTCTFSPN2MDVHMKIXMG47MZSGQERTA7R
 
 ![alt text](image.png)
