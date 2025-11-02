@@ -2,7 +2,7 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 
 // Configuration - UPDATE THESE VALUES IN PRODUCTION
 const CONFIG = {
-    contractId: 'CB7BI4MNPQC7FZSDY7OOC6ETLDEPLEITEI3WTTFGFEJG36GTGR3GPW43', // Updated: added redeem function
+    contractId: 'CCA3AO4TOOVS66AXW7NQLDCBDTCTFSPN2MDVHMKIXMG47MZSGQERTA7R', // Updated: recompiled contract
     xlmTokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', // Native XLM on testnet
     networkPassphrase: StellarSdk.Networks.TESTNET,
     rpcUrl: 'https://soroban-testnet.stellar.org',
@@ -391,8 +391,7 @@ window.purchaseToken = async function(tokenId) {
         const params = [
             StellarSdk.nativeToScVal(tokenId, { type: 'u64' }),
             new StellarSdk.Address(connectedPublicKey).toScVal(),
-            StellarSdk.nativeToScVal(parseInt(hours), { type: 'u32' }),
-            new StellarSdk.Address(CONFIG.xlmTokenId).toScVal() // XLM token for payment
+            StellarSdk.nativeToScVal(parseInt(hours), { type: 'u32' })
         ];
         
         let transaction = new StellarSdk.TransactionBuilder(account, {
