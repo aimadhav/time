@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Vec};
 
 #[contracttype]
 pub struct TimeToken {
@@ -74,8 +74,14 @@ impl TimeMarketplace {
         env.storage().instance().get(&DataKey::Token(token_id))
     }
 
-    /// Purchase time token
-    pub fn purchase_token(env: Env, token_id: u64, buyer: Address, hours: u32) -> bool {
+    /// Purchase time token with XLM payment
+    pub fn purchase_token(
+        env: Env,
+        token_id: u64,
+        buyer: Address,
+        hours: u32,
+        xlm_token: Address,
+    ) -> bool {
         buyer.require_auth();
 
         let mut token: TimeToken = match env.storage().instance().get(&DataKey::Token(token_id)) {
@@ -87,6 +93,14 @@ impl TimeMarketplace {
             return false;
         }
 
+        // Calculate total payment amount
+        let total_amount = token.hourly_rate * (hours as i128);
+
+        // Transfer XLM from buyer to seller
+        let xlm_client = token::Client::new(&env, &xlm_token);
+        xlm_client.transfer(&buyer, &token.seller, &total_amount);
+
+        // Update token availability
         token.hours_available -= hours;
         env.storage().instance().set(&DataKey::Token(token_id), &token);
 

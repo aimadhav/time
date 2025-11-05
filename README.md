@@ -223,6 +223,7 @@ We welcome contributions from the community! Here's how you can help:
 5. **Open a Pull Request**
 
 ###Contract details
-contract id:CA3AO4TOOVS66AXW7NQLDCBDTCTFSPN2MDVHMKIXMG47MZSGQERTA7R
+contract id:CASAHQ6RD2FBISDFVONK52OQJ62GZPVFPENSWJENS735GBELKBKOZE4L
+
 
 ![alt text](image.png)
