@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freighter Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #333;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .info {
+            color: #2196F3;
+        }
+        .warning {
+            color: #ff9800;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        h2 {
+            color: #2196F3;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Freighter Wallet Diagnostic Tool</h1>
+    <p>This page tests if Freighter is working correctly in your browser.</p>
+
+    <div class="test-section">
+        <h2>Test 1: Check if Freighter is Injected</h2>
+        <button onclick="test1()">Run Test 1</button>
+        <div id="result1" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: List Available Methods</h2>
+        <button onclick="test2()">Run Test 2</button>
+        <div id="result2" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Check Connection Status</h2>
+        <button onclick="test3()">Run Test 3</button>
+        <div id="result3" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Request Access (Connect Wallet)</h2>
+        <button onclick="test4()">Run Test 4</button>
+        <div id="result4" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Continuous Detection (Timing Test)</h2>
+        <button onclick="test5()">Run Test 5</button>
+        <button onclick="stopTest5()">Stop Test 5</button>
+        <div id="result5" class="result"></div>
+    </div>
+
+    <script>
+        let test5Interval = null;
+
+        // Run on page load
+        window.addEventListener('load', () => {
+            console.log('✅ Page loaded');
+            console.log('Freighter available:', !!window.freighterApi);
+            autoTest();
+        });
+
+        // Auto-run basic checks on load
+        function autoTest() {
+            const result = document.createElement('div');
+            result.className = 'test-section';
+            result.innerHTML = '<h2>🚀 Auto-Run Results (on page load)</h2>';
+            
+            const details = document.createElement('div');
+            details.className = 'result';
+            
+            let output = '';
+            output += `Document State: ${document.readyState}\n`;
+            output += `Freighter Exists: ${!!window.freighterApi}\n`;
+            output += `Timestamp: ${new Date().toISOString()}\n`;
+            
+            if (window.freighterApi) {
+                details.className += ' success';
+                output += `\n✅ SUCCESS: Freighter is available!\n`;
+                output += `Available methods: ${Object.keys(window.freighterApi).join(', ')}`;
+            } else {
+                details.className += ' error';
+                output += `\n❌ ERROR: Freighter NOT found!\n`;
+                output += `\nPossible causes:\n`;
+                output += `1. Extension not installed\n`;
+                output += `2. Extension disabled\n`;
+                output += `3. Wrong browser/profile\n`;
+                output += `4. CSP blocking injection\n`;
+            }
+            
+            details.textContent = output;
+            result.appendChild(details);
+            document.body.insertBefore(result, document.body.firstChild);
+        }
+
+        function test1() {
+            const result = document.getElementById('result1');
+            result.textContent = 'Running test...\n';
+            
+            let output = '';
+            output += `window.freighterApi exists: ${!!window.freighterApi}\n`;
+            output += `Type: ${typeof window.freighterApi}\n`;
+            
+            if (window.freighterApi) {
+                result.className = 'result success';
+                output += `\n✅ PASS: Freighter is injected!`;
+            } else {
+                result.className = 'result error';
+                output += `\n❌ FAIL: Freighter is NOT injected!`;
+            }
+            
+            result.textContent = output;
+        }
+
+        function test2() {
+            const result = document.getElementById('result2');
+            
+            if (!window.freighterApi) {
+                result.className = 'result error';
+                result.textContent = '❌ Freighter not found. Cannot list methods.';
+                return;
+            }
+            
+            result.className = 'result success';
+            const methods = Object.keys(window.freighterApi);
+            let output = `Found ${methods.length} methods:\n\n`;
+            methods.forEach(method => {
+                output += `- ${method}\n`;
+            });
+            
+            output += `\nExpected methods:\n`;
+            output += `- isConnected ✓\n`;
+            output += `- getPublicKey ✓\n`;
+            output += `- requestAccess ✓\n`;
+            output += `- signTransaction ✓\n`;
+            
+            result.textContent = output;
+        }
+
+        async function test3() {
+            const result = document.getElementById('result3');
+            result.textContent = 'Checking connection status...\n';
+            
+            if (!window.freighterApi) {
+                result.className = 'result error';
+                result.textContent = '❌ Freighter not found.';
+                return;
+            }
+            
+            try {
+                const isConnected = await window.freighterApi.isConnected();
+                result.className = 'result info';
+                result.textContent = `Connection Status: ${isConnected ? '✅ Connected' : '⚠️ Not Connected'}`;
+            } catch (err) {
+                result.className = 'result error';
+                result.textContent = `❌ Error checking connection:\n${err.message}`;
+            }
+        }
+
+        async function test4() {
+            const result = document.getElementById('result4');
+            result.textContent = '🔄 Requesting wallet access...\nCheck for Freighter popup!\n';
+            
+            if (!window.freighterApi) {
+                result.className = 'result error';
+                result.textContent = '❌ Freighter not found.';
+                return;
+            }
+            
+            try {
+                console.log('Calling requestAccess...');
+                const publicKey = await window.freighterApi.requestAccess();
+                result.className = 'result success';
+                result.textContent = `✅ SUCCESS!\n\nPublic Key:\n${publicKey}\n\nYou are now connected to Freighter!`;
+                console.log('Connected:', publicKey);
+            } catch (err) {
+                result.className = 'result error';
+                let output = `❌ FAILED to connect\n\n`;
+                output += `Error: ${err.message}\n\n`;
+                
+                if (err.message.includes('User declined')) {
+                    output += `Reason: You clicked "Deny" in the Freighter popup.\n`;
+                    output += `Try again and click "Approve".`;
+                } else {
+                    output += `Reason: ${err.message}`;
+                }
+                
+                result.textContent = output;
+                console.error('Connection error:', err);
+            }
+        }
+
+        function test5() {
+            const result = document.getElementById('result5');
+            result.className = 'result info';
+            
+            let checks = 0;
+            let foundAt = null;
+            
+            result.textContent = 'Starting continuous detection...\n\n';
+            
+            test5Interval = setInterval(() => {
+                checks++;
+                const exists = !!window.freighterApi;
+                
+                if (exists && !foundAt) {
+                    foundAt = checks;
+                }
+                
+                let output = `Checks: ${checks}\n`;
+                output += `Current Status: ${exists ? '✅ FOUND' : '❌ NOT FOUND'}\n`;
+                
+                if (foundAt) {
+                    output += `First detected at check #${foundAt}\n`;
+                }
+                
+                output += `\nContinuously checking... (click Stop to end)`;
+                result.textContent = output;
+                
+                if (checks >= 50) {
+                    stopTest5();
+                    result.textContent += '\n\n⏹️ Auto-stopped after 50 checks';
+                }
+            }, 200);
+        }
+
+        function stopTest5() {
+            if (test5Interval) {
+                clearInterval(test5Interval);
+                test5Interval = null;
+                const result = document.getElementById('result5');
+                result.textContent += '\n\n⏹️ Test stopped';
+            }
+        }
+
+        // Log everything to console
+        console.log('='.repeat(50));
+        console.log('FREIGHTER DIAGNOSTIC TOOL LOADED');
+        console.log('='.repeat(50));
+        console.log('Document ready state:', document.readyState);
+        console.log('Freighter available:', !!window.freighterApi);
+        console.log('='.repeat(50));
+    </script>
+</body>
+</html>

@@ -1,0 +1,549 @@
+import * as StellarSdk from '@stellar/stellar-sdk';
+import * as StellarSdk from '@stellar/stellar-sdk';
+import * as rpc from '@stellar/stellar-sdk/rpc';
+
+// Global wallet state
+let currentWallet: { publicKey: string | null } = {
+    publicKey: null
+};
+
+declare global {
+    interface Window {
+        freighterApi: any;
+        StellarWallet?: any;
+    }
+}
+
+export const CONFIG = {
+  contractId: 'CCA3AO4TOOVS66AXW7NQLDCBDTCTFSPN2MDVHMKIXMG47MZSGQERTA7R',
+  xlmTokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
+  networkPassphrase: StellarSdk.Networks.TESTNET,
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+};
+
+export const server = new rpc.Server(CONFIG.rpcUrl);
+
+// Get account balance
+export async function getAccountBalance(publicKey: string): Promise<string> {
+  try {
+    const account = await server.getAccount(publicKey);
+    // For Soroban, we'll return the sequence number as a placeholder
+    // In a production app, you'd want to implement proper balance checking
+    return account.sequence.toString();
+  } catch (error) {
+    console.error('Failed to fetch balance:', error);
+    throw new Error('Failed to fetch account balance');
+  }
+}
+
+// Disconnect wallet
+export function disconnectWallet(): void {
+  try {
+    // Clear the session storage
+    sessionStorage.removeItem('walletAddress');
+    console.log('✅ Wallet disconnected');
+  } catch (error) {
+    console.error('❌ Error disconnecting wallet:', error);
+    throw new Error('Failed to disconnect wallet');
+  }
+}
+
+export interface TimeToken {
+  seller: string;
+  hourly_rate: string;
+  hours_available: number;
+  description: string;
+}
+
+// Connect to Freighter wallet
+export async function connectWallet(): Promise<string | null> {
+  try {
+    const isInstalled = await isFreighterInstalled();
+    if (!isInstalled) {
+      window.open('https://www.freighter.app/', '_blank');
+      throw new Error('Please install the Freighter wallet extension first. Opening Freighter website...');
+    }
+
+    const result = await window.freighterApi.isConnected();
+    if (result.error) {
+      throw new Error(result.error.message || 'Failed to check wallet connection');
+    }
+
+    if (!result.isConnected) {
+      // Try to connect
+      try {
+        await new Promise((resolve, reject) => {
+          const connectInterval = setInterval(async () => {
+            const newResult = await window.freighterApi.isConnected();
+            if (newResult.isConnected) {
+              clearInterval(connectInterval);
+              resolve(true);
+            }
+          }, 500);
+
+          // Timeout after 15 seconds
+          setTimeout(() => {
+            clearInterval(connectInterval);
+            reject(new Error('Connection timeout. Please make sure Freighter is unlocked.'));
+          }, 15000);
+        });
+      } catch (error: any) {
+        throw new Error(error.message || 'Failed to connect to Freighter');
+      }
+    }
+
+    const keyResult = await window.freighterApi.getPublicKey();
+    if (keyResult.error) {
+      throw new Error(keyResult.error.message || keyResult.error);
+    }
+    
+    console.log('✅ Wallet connected:', keyResult.publicKey);
+    return keyResult.publicKey;
+  } catch (error: any) {
+    console.error('❌ Failed to connect wallet:', error);
+    throw new Error(error.message || 'Failed to connect to Freighter wallet. Please make sure it is installed and unlocked.');
+  }
+}
+
+// Check if Freighter is installed
+export async function isFreighterInstalled(): Promise<boolean> {
+  try {
+    // Wait for freighter to be initialized
+    const checkFreighter = () => {
+      return new Promise<boolean>((resolve) => {
+        if (window.freighterApi) {
+          resolve(true);
+        } else {
+          const interval = setInterval(() => {
+            if (window.freighterApi) {
+              clearInterval(interval);
+              resolve(true);
+            }
+          }, 100);
+          // Timeout after 3 seconds
+          setTimeout(() => {
+            clearInterval(interval);
+            resolve(false);
+          }, 3000);
+        }
+      });
+    };
+
+    const hasFreighter = await checkFreighter();
+    if (!hasFreighter) return false;
+
+    const result = await window.freighterApi.isConnected();
+    return result.isConnected && !result.error;
+  } catch {
+    return false;
+  }
+}
+
+// Verify contract is deployed
+export async function verifyContractDeployed(): Promise<boolean> {
+  try {
+    const count = await getTokenCount();
+    console.log('✅ Contract verified, token count:', count);
+    return true;
+  } catch (error) {
+    console.error('❌ Contract verification failed:', error);
+    return false;
+  }
+}
+
+// Mint a new time token
+export async function mintTimeToken(
+  seller: string,
+  hourlyRate: number,
+  hoursAvailable: number,
+  description: string
+): Promise<number | null> {
+  try {
+    const account = await server.getAccount(seller);
+    
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'mint_time_token',
+          StellarSdk.Address.fromString(seller).toScVal(),
+          StellarSdk.nativeToScVal(hourlyRate * 10000000, { type: 'i128' }),
+          StellarSdk.nativeToScVal(hoursAvailable, { type: 'u32' }),
+          StellarSdk.nativeToScVal(description, { type: 'string' })
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    
+    console.log('📝 Simulating transaction...');
+    const simulation = await server.simulateTransaction(preparedTx);
+    console.log('✅ Simulation result:', simulation);
+    
+    const xdr = preparedTx.toXDR();
+    
+    console.log('🔏 Requesting signature from Freighter...');
+    const signResult = await window.freighterApi.signTransaction(xdr, {
+      networkPassphrase: CONFIG.networkPassphrase,
+    });
+
+    if (signResult.error) {
+      throw new Error(signResult.error.message || signResult.error);
+    }
+
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
+      signResult.signedTxXdr,
+      CONFIG.networkPassphrase
+    );
+
+    console.log('📤 Sending transaction to network...');
+    const result = await server.sendTransaction(signedTx);
+    console.log('✅ Transaction sent:', result.hash);
+    
+    if (result.status === 'PENDING') {
+      console.log('⏳ Waiting for transaction confirmation...');
+      let response = await server.getTransaction(result.hash);
+      let attempts = 0;
+      const maxAttempts = 30;
+      
+      while (response.status === 'NOT_FOUND' && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await server.getTransaction(result.hash);
+        attempts++;
+      }
+      
+      if (response.status === 'SUCCESS') {
+        const returnValue = response.returnValue;
+        const tokenId = StellarSdk.scValToNative(returnValue);
+        console.log('✅ Token minted successfully! Token ID:', tokenId);
+        console.log('🔗 View on Stellar Expert:', `https://stellar.expert/explorer/testnet/tx/${result.hash}`);
+        return tokenId;
+      } else if (response.status === 'FAILED') {
+        console.error('❌ Transaction failed:', response);
+        throw new Error('Transaction failed on the blockchain');
+      } else if (attempts >= maxAttempts) {
+        throw new Error('Transaction timeout - please check Stellar Expert');
+      }
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error('❌ Failed to mint token:', error);
+    if (error.message?.includes('User declined')) {
+      throw new Error('Transaction was cancelled');
+    }
+    throw new Error(error.message || 'Failed to mint token. Please try again.');
+  }
+}
+
+// Get token details
+export async function getToken(tokenId: number): Promise<TimeToken | null> {
+  try {
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'get_token',
+          StellarSdk.nativeToScVal(tokenId, { type: 'u64' })
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    const result = await server.simulateTransaction(preparedTx);
+    
+    if ('result' in result && result.result) {
+      const returnValue = result.result.retval;
+      const token = StellarSdk.scValToNative(returnValue);
+      return token;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Failed to get token:', error);
+    return null;
+  }
+}
+
+// Get total token count
+export async function getTokenCount(): Promise<number> {
+  try {
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(contract.call('get_token_count'))
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    const result = await server.simulateTransaction(preparedTx);
+    
+    if ('result' in result && result.result) {
+      const returnValue = result.result.retval;
+      return StellarSdk.scValToNative(returnValue);
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error('Failed to get token count:', error);
+    return 0;
+  }
+}
+
+// Purchase time token
+export async function purchaseToken(
+  buyer: string,
+  tokenId: number,
+  hours: number
+): Promise<boolean> {
+  try {
+    const account = await server.getAccount(buyer);
+    
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'purchase_token',
+          StellarSdk.nativeToScVal(tokenId, { type: 'u64' }),
+          StellarSdk.Address.fromString(buyer).toScVal(),
+          StellarSdk.nativeToScVal(hours, { type: 'u32' })
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    
+    console.log('📝 Simulating purchase transaction...');
+    const simulation = await server.simulateTransaction(preparedTx);
+    console.log('✅ Simulation result:', simulation);
+    
+    const xdr = preparedTx.toXDR();
+    
+    console.log('🔏 Requesting signature from Freighter...');
+    const signResult = await window.freighterApi.signTransaction(xdr, {
+      networkPassphrase: CONFIG.networkPassphrase,
+    });
+
+    if (signResult.error) {
+      throw new Error(signResult.error.message || signResult.error);
+    }
+
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
+      signResult.signedTxXdr,
+      CONFIG.networkPassphrase
+    );
+
+    console.log('📤 Sending transaction to network...');
+    const result = await server.sendTransaction(signedTx);
+    console.log('✅ Transaction sent:', result.hash);
+    
+    if (result.status === 'PENDING') {
+      console.log('⏳ Waiting for transaction confirmation...');
+      let response = await server.getTransaction(result.hash);
+      let attempts = 0;
+      const maxAttempts = 30;
+      
+      while (response.status === 'NOT_FOUND' && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await server.getTransaction(result.hash);
+        attempts++;
+      }
+      
+      if (response.status === 'SUCCESS') {
+        console.log('✅ Purchase successful!');
+        console.log('🔗 View on Stellar Expert:', `https://stellar.expert/explorer/testnet/tx/${result.hash}`);
+        return true;
+      } else if (response.status === 'FAILED') {
+        console.error('❌ Purchase failed:', response);
+        throw new Error('Purchase transaction failed');
+      }
+    }
+    
+    return false;
+  } catch (error: any) {
+    console.error('❌ Failed to purchase token:', error);
+    if (error.message?.includes('User declined')) {
+      throw new Error('Transaction was cancelled');
+    }
+    throw new Error(error.message || 'Failed to purchase token. Please try again.');
+  }
+}
+
+// Get seller tokens
+export async function getSellerTokens(seller: string): Promise<number[]> {
+  try {
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const account = await server.getAccount('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'get_seller_tokens',
+          StellarSdk.Address.fromString(seller).toScVal()
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    const result = await server.simulateTransaction(preparedTx);
+    
+    if ('result' in result && result.result) {
+      const returnValue = result.result.retval;
+      return StellarSdk.scValToNative(returnValue) || [];
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to get seller tokens:', error);
+    return [];
+  }
+}
+
+// Update token availability
+export async function updateTokenAvailability(
+  seller: string,
+  tokenId: number,
+  newHours: number
+): Promise<boolean> {
+  try {
+    const account = await server.getAccount(seller);
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'update_availability',
+          StellarSdk.nativeToScVal(tokenId, { type: 'u64' }),
+          StellarSdk.Address.fromString(seller).toScVal(),
+          StellarSdk.nativeToScVal(newHours, { type: 'u32' })
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    const xdr = preparedTx.toXDR();
+    
+    const signResult = await window.freighterApi.signTransaction(xdr, {
+      networkPassphrase: CONFIG.networkPassphrase,
+    });
+
+    if (signResult.error) {
+      throw new Error(signResult.error.message || signResult.error);
+    }
+
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
+      signResult.signedTxXdr,
+      CONFIG.networkPassphrase
+    );
+
+    const result = await server.sendTransaction(signedTx);
+    
+    if (result.status === 'PENDING') {
+      let response = await server.getTransaction(result.hash);
+      let attempts = 0;
+      while (response.status === 'NOT_FOUND' && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await server.getTransaction(result.hash);
+        attempts++;
+      }
+      
+      return response.status === 'SUCCESS';
+    }
+    
+    return false;
+  } catch (error: any) {
+    console.error('❌ Failed to update availability:', error);
+    throw new Error(error.message || 'Failed to update token availability');
+  }
+}
+
+// Delete token
+export async function deleteToken(
+  seller: string,
+  tokenId: number
+): Promise<boolean> {
+  try {
+    const account = await server.getAccount(seller);
+    const contract = new StellarSdk.Contract(CONFIG.contractId);
+    
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: CONFIG.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'delete_token',
+          StellarSdk.nativeToScVal(tokenId, { type: 'u64' }),
+          StellarSdk.Address.fromString(seller).toScVal()
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await server.prepareTransaction(tx);
+    const xdr = preparedTx.toXDR();
+    
+    const signResult = await window.freighterApi.signTransaction(xdr, {
+      networkPassphrase: CONFIG.networkPassphrase,
+    });
+
+    if (signResult.error) {
+      throw new Error(signResult.error.message || signResult.error);
+    }
+
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
+      signResult.signedTxXdr,
+      CONFIG.networkPassphrase
+    );
+
+    const result = await server.sendTransaction(signedTx);
+    
+    if (result.status === 'PENDING') {
+      let response = await server.getTransaction(result.hash);
+      let attempts = 0;
+      while (response.status === 'NOT_FOUND' && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await server.getTransaction(result.hash);
+        attempts++;
+      }
+      
+      return response.status === 'SUCCESS';
+    }
+    
+    return false;
+  } catch (error: any) {
+    console.error('❌ Failed to delete token:', error);
+    throw new Error(error.message || 'Failed to delete token');
+  }
+}
